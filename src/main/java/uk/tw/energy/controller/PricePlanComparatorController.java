@@ -1,5 +1,6 @@
 package uk.tw.energy.controller;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -68,5 +69,17 @@ public class PricePlanComparatorController {
         }
 
         return ResponseEntity.ok(recommendations);
+    }
+
+    @GetMapping("/lastweek/consumption/{smartMeterId}")
+    public ResponseEntity<String> calculateEnergyConsumptionPrice(@PathVariable String smartMeterId){
+        Optional<String> pricePlanNameOptional = Optional.ofNullable(accountService.getPricePlanIdForSmartMeterId(smartMeterId));
+
+        if (pricePlanNameOptional.isPresent()) {
+            BigDecimal averageEnergyCostForLast7Days = pricePlanService.calculateCostForLastSevenDays(smartMeterId, pricePlanNameOptional.get());
+            return new ResponseEntity<>(averageEnergyCostForLast7Days.toPlainString(), HttpStatus.OK);
+        }
+
+        return new ResponseEntity<>("Price plan data not present.", HttpStatus.NOT_FOUND);
     }
 }

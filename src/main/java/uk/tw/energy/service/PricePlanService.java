@@ -7,6 +7,8 @@ import uk.tw.energy.domain.PricePlan;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Duration;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -16,6 +18,7 @@ import java.util.stream.Collectors;
 @Service
 public class PricePlanService {
 
+    public static final int LAST_7_DAYS = 7;
     private final List<PricePlan> pricePlans;
     private final MeterReadingService meterReadingService;
 
@@ -35,12 +38,29 @@ public class PricePlanService {
                 Collectors.toMap(PricePlan::getPlanName, t -> calculateCost(electricityReadings.get(), t))));
     }
 
+    public BigDecimal calculateCostForLastSevenDays(String smartMeterId, String pricePlanName) {
+
+        Optional<List<ElectricityReading>> electricityReadings = meterReadingService.getReadings(smartMeterId);
+
+        if (electricityReadings.isPresent()) {
+            List<ElectricityReading> readingList = electricityReadings.get().stream()
+                    .filter(electricityReading -> Instant.now().minus(LAST_7_DAYS, ChronoUnit.DAYS).isBefore(electricityReading.getTime()))
+                    .collect(Collectors.toList());
+            return calculateCost(readingList, getPricePlan(pricePlanName).get()) ;
+        }
+        return BigDecimal.ZERO;
+    }
+
     private BigDecimal calculateCost(List<ElectricityReading> electricityReadings, PricePlan pricePlan) {
         BigDecimal average = calculateAverageReading(electricityReadings);
         BigDecimal timeElapsed = calculateTimeElapsed(electricityReadings);
 
         BigDecimal averagedCost = average.divide(timeElapsed, RoundingMode.HALF_UP);
         return averagedCost.multiply(pricePlan.getUnitRate());
+    }
+
+    private Optional<PricePlan> getPricePlan(String pricePlanId) {
+        return pricePlans.stream().filter(pp -> pp.getPlanName().equals(pricePlanId)).findFirst();
     }
 
     private BigDecimal calculateAverageReading(List<ElectricityReading> electricityReadings) {
@@ -61,5 +81,6 @@ public class PricePlanService {
 
         return BigDecimal.valueOf(Duration.between(first.getTime(), last.getTime()).getSeconds() / 3600.0);
     }
+
 
 }
